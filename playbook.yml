@@ -1,0 +1,46 @@
+- hosts: tower
+  become: yes
+  vars:
+    tower_version: 3.1.1
+    tower_filename: "ansible-tower-setup-{{ tower_version }}"
+    temp_dir: /tmp
+    tower_dir: "{{ temp_dir }}/{{ tower_filename }}"
+    tower_passwords:
+      admin_password: changeme
+      redis_password: changeme
+      pg_password: changeme
+      rabbitmq_password: changeme
+  tasks:
+    - name: install libselinux-python
+      yum:
+        name: libselinux-python
+        state: installed
+    - name: "Download and extract the Tower setup version {{ tower_version }}"
+      unarchive:
+        src: "https://releases.ansible.com/ansible-tower/setup/{{ tower_filename }}.tar.gz"
+        dest: "{{ temp_dir }}"
+        remote_src: yes
+        creates: "{{ tower_dir }}"
+    - name: "Configure passwords in file {{ tower_dir }}/inventory"
+      ini_file:
+        dest: "{{ tower_dir }}/inventory"
+        section: "all:vars"
+        option: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+      with_dict: "{{ tower_passwords }}"
+    - name: "Configure non-prod-defaults in file {{ tower_dir }}/inventory"
+      ini_file:
+        dest: "{{ tower_dir }}/inventory"
+        section: "all:vars"
+        option: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+      with_dict:
+        minimum_var_space: 0
+        required_ram: 0
+    - name: "Start setup.sh from Tower"
+      command: ./setup.sh
+      args:
+        chdir: "{{ tower_dir }}"
+        creates: /var/lib/awx/wsgi.py
